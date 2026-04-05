@@ -1,7 +1,8 @@
 from datetime import datetime
 from uuid import uuid4
-from fastapi import APIRouter, Body, HTTPException, status
+from fastapi import APIRouter, Body, HTTPException, Query, status
 from pydantic import UUID4
+from pyparsing import Optional
 
 from workout_api.atleta.schemas import AtletaIn, AtletaOut, AtletaUpdate
 from workout_api.atleta.models import AtletaModel
@@ -94,6 +95,31 @@ async def get(id: UUID4, db_session: DatabaseDependency) -> AtletaOut:
     
     return atleta
 
+@router.get(
+    '/',
+    summary='Consultar todos os Atletas',
+    status_code=status.HTTP_200_OK,
+    response_model=list[AtletaOut],
+)
+async def query(
+    db_session: DatabaseDependency,
+    nome: Optional[str] = Query(None),
+    cpf: Optional[str] = Query(None)
+) -> list[AtletaOut]:
+
+    stmt = select(AtletaModel)
+
+    if nome:
+        stmt = stmt.filter(AtletaModel.nome.ilike(f"%{nome}%"))
+
+    if cpf:
+        stmt = stmt.filter(AtletaModel.cpf == cpf)
+
+    result = await db_session.execute(stmt)
+    atletas = result.scalars().all()
+
+    return [AtletaOut.model_validate(atleta) for atleta in atletas]
+
 
 @router.patch(
     '/{id}', 
@@ -140,3 +166,4 @@ async def delete(id: UUID4, db_session: DatabaseDependency) -> None:
     
     await db_session.delete(atleta)
     await db_session.commit()
+
